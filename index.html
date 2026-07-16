@@ -314,14 +314,18 @@ Never dim your shine for anyone. The world needs exactly the you that you alread
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 window.scrollTo(0,0);
 addEventListener("load",()=>window.scrollTo(0,0));
-const DPR=Math.min(devicePixelRatio||1,2);
+const DPR=Math.min(devicePixelRatio||1,1.5);
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
+const MOBILE=innerWidth<760||matchMedia("(pointer:coarse)").matches;
+/* perf: pause heavy background canvases while scrolling OR celebrating → buttery scroll, no freeze */
+let isScrolling=false,scrollEndT,isCelebrating=false;
+addEventListener("scroll",()=>{isScrolling=true;clearTimeout(scrollEndT);scrollEndT=setTimeout(()=>{isScrolling=false;},150);},{passive:true});
 
 /* AURORA */
 (function(){const c=document.getElementById("aurora"),x=c.getContext("2d");let W,H;
   const blobs=[{h:330,r:.55,a:.9,ph:0,sp:.00022},{h:45,r:.42,a:.8,ph:2,sp:.00028},{h:265,r:.5,a:.7,ph:4,sp:.00019}];
-  function size(){W=c.width=innerWidth*DPR;H=c.height=innerHeight*DPR;}size();addEventListener("resize",size);
-  let last=0;function frame(t){if(!reduce)requestAnimationFrame(frame);if(t-last<32)return;last=t;
+  function size(){W=c.width=innerWidth;H=c.height=innerHeight;}size();addEventListener("resize",size);
+  let last=0;function frame(t){if(!reduce)requestAnimationFrame(frame);if(t-last<45||isScrolling||isCelebrating)return;last=t;
     x.clearRect(0,0,W,H);x.fillStyle="#0d0716";x.fillRect(0,0,W,H);x.globalCompositeOperation="lighter";
     blobs.forEach(b=>{const px=(.5+.36*Math.sin(t*b.sp+b.ph))*W,py=(.42+.32*Math.cos(t*b.sp*1.3+b.ph*1.7))*H,rad=b.r*Math.min(W,H);
       const g=x.createRadialGradient(px,py,0,px,py,rad);g.addColorStop(0,`hsla(${b.h},85%,60%,${b.a*.5})`);g.addColorStop(1,`hsla(${b.h},85%,60%,0)`);
@@ -331,16 +335,17 @@ const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
 
 /* PARTICLES */
 (function(){const c=document.getElementById("particles"),x=c.getContext("2d");let W,H,pts=[],mx=.5,my=.5;
-  function size(){W=c.width=innerWidth*DPR;H=c.height=innerHeight*DPR;const n=Math.min(70,Math.floor(innerWidth/9));
-    pts=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.15*DPR,vy:(Math.random()-.5)*.15*DPR,r:(Math.random()*1.6+.5)*DPR,tw:Math.random()*6}));}
+  const LINK=!MOBILE,LD=110*110;
+  function size(){W=c.width=innerWidth;H=c.height=innerHeight;const n=Math.min(MOBILE?24:46,(innerWidth/16)|0);
+    pts=Array.from({length:n},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.15,vy:(Math.random()-.5)*.15,r:Math.random()*1.4+.6,tw:Math.random()*6}));}
   size();addEventListener("resize",size);
   addEventListener("pointermove",e=>{mx=e.clientX/innerWidth;my=e.clientY/innerHeight;},{passive:true});
-  let last=0;function frame(t){if(!reduce)requestAnimationFrame(frame);if(t-last<32)return;last=t;
-    x.clearRect(0,0,W,H);const ox=(mx-.5)*20*DPR,oy=(my-.5)*20*DPR;
+  let last=0;function frame(t){if(!reduce)requestAnimationFrame(frame);if(t-last<33||isScrolling||isCelebrating)return;last=t;
+    x.clearRect(0,0,W,H);const ox=(mx-.5)*16,oy=(my-.5)*16;
     for(let i=0;i<pts.length;i++){const p=pts[i];p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>W)p.vx*=-1;if(p.y<0||p.y>H)p.vy*=-1;
       const tw=.5+.5*Math.sin(t*.002+p.tw);x.beginPath();x.arc(p.x+ox,p.y+oy,p.r,0,7);x.fillStyle=`rgba(255,225,180,${.3+tw*.5})`;x.fill();
-      for(let j=i+1;j<pts.length;j++){const q=pts[j],dx=p.x-q.x,dy=p.y-q.y,d=dx*dx+dy*dy;
-        if(d<(120*DPR)**2){x.strokeStyle=`rgba(255,157,187,${.12*(1-d/((120*DPR)**2))})`;x.lineWidth=DPR*.5;x.beginPath();x.moveTo(p.x+ox,p.y+oy);x.lineTo(q.x+ox,q.y+oy);x.stroke();}}}
+      if(LINK)for(let j=i+1;j<pts.length;j++){const q=pts[j],dx=p.x-q.x,dy=p.y-q.y,d=dx*dx+dy*dy;
+        if(d<LD){x.strokeStyle=`rgba(255,157,187,${.12*(1-d/LD)})`;x.lineWidth=.5;x.beginPath();x.moveTo(p.x+ox,p.y+oy);x.lineTo(q.x+ox,q.y+oy);x.stroke();}}}
     }
   requestAnimationFrame(frame);})();
 
@@ -370,22 +375,22 @@ const PARTY=(function(){const c=document.getElementById("fireworks"),x=c.getCont
   function launch(tx,style){rockets.push({x:(tx==null?.12+Math.random()*.76:tx)*W,y:H,vx:(Math.random()-.5)*1.4*DPR,vy:-(9.5+Math.random()*3.2)*DPR,ty:(.1+Math.random()*.32)*H,col:rc(),style:style||styles[(Math.random()*styles.length)|0]});}
   function explode(rx,ry,col,style){
     flashes.push({x:rx,y:ry,r:1,max:(60+Math.random()*40)*DPR,life:1,col});
-    const n=style==="ring"?46:style==="willow"?64:76;
+    const n=style==="ring"?(MOBILE?28:46):style==="willow"?(MOBILE?38:64):(MOBILE?44:76);
     for(let i=0;i<n;i++){const a=(Math.PI*2*i)/n+(style==="ring"?0:Math.random()*.25);
       let sp=style==="ring"?3.4*DPR:style==="willow"?(1+Math.random()*2)*DPR:(1.4+Math.random()*4.4)*DPR;
       sparks.push({x:rx,y:ry,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:style==="willow"?.005+Math.random()*.005:.008+Math.random()*.012,grav:style==="willow"?.09*DPR:.045*DPR,drag:style==="willow"?.99:.985,col,tw:Math.random()*6});}
   }
   function cannon(side){const ox=side<0?.04*W:.96*W,oy=H*.94;
-    for(let i=0;i<46;i++){const base=side<0?-Math.PI/3.2:-Math.PI+Math.PI/3.2;const a=base+(Math.random()-.5)*.5;const sp=(9+Math.random()*8)*DPR;
+    for(let i=0;i<(MOBILE?24:46);i++){const base=side<0?-Math.PI/3.2:-Math.PI+Math.PI/3.2;const a=base+(Math.random()-.5)*.5;const sp=(9+Math.random()*8)*DPR;
       conf.push({x:ox,y:oy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,w:(5+Math.random()*6)*DPR,h:(9+Math.random()*9)*DPR,rot:Math.random()*6.3,vr:(Math.random()-.5)*.4,sway:Math.random()*6.3,col:rc(),drag:.99});}}
   function rain(n){for(let i=0;i<n;i++)conf.push({x:Math.random()*W,y:-20*DPR,vx:(Math.random()-.5)*2*DPR,vy:(2+Math.random()*3)*DPR,w:(5+Math.random()*6)*DPR,h:(9+Math.random()*8)*DPR,rot:Math.random()*6.3,vr:(Math.random()-.5)*.35,sway:Math.random()*6.3,col:rc(),drag:1});}
   function balloon(){balloons.push({x:(.1+Math.random()*.8)*W,y:H+40*DPR,vy:-(1.1+Math.random()*1.3)*DPR,r:(16+Math.random()*12)*DPR,col:rc(),wob:Math.random()*6.3,blastY:(.12+Math.random()*.4)*H});}
   function blastBalloon(b){flashes.push({x:b.x,y:b.y,r:1,max:56*DPR,life:1,col:b.col});
     /* sky-shot style burst: colorful glowing spark spray (no ribbons) */
-    const n=64;for(let i=0;i<n;i++){const a=(Math.PI*2*i)/n+Math.random()*.14;const sp=(2+Math.random()*4.6)*DPR;
+    const n=MOBILE?34:64;for(let i=0;i<n;i++){const a=(Math.PI*2*i)/n+Math.random()*.14;const sp=(2+Math.random()*4.6)*DPR;
       sparks.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:.009+Math.random()*.012,grav:.045*DPR,drag:.985,col:rc(),tw:Math.random()*6});}
     /* bright inner core */
-    for(let i=0;i<20;i++){const a=Math.random()*6.3,sp=(.5+Math.random()*2)*DPR;
+    for(let i=0;i<(MOBILE?10:20);i++){const a=Math.random()*6.3,sp=(.5+Math.random()*2)*DPR;
       sparks.push({x:b.x,y:b.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,decay:.02,grav:.03*DPR,drag:.98,col:[255,255,255],tw:0});}
     SFX.pop();}
   function drawBalloon(b){x.fillStyle=`rgb(${b.col[0]},${b.col[1]},${b.col[2]})`;
@@ -403,13 +408,13 @@ const PARTY=(function(){const c=document.getElementById("fireworks"),x=c.getCont
     x.globalCompositeOperation="source-over";
     for(let i=balloons.length-1;i>=0;i--){const b=balloons[i];b.wob+=.03;b.x+=Math.sin(b.wob)*.6*DPR;b.y+=b.vy;if(b.y<=b.blastY){blastBalloon(b);balloons.splice(i,1);continue;}drawBalloon(b);}
     for(let i=conf.length-1;i>=0;i--){const p=conf[i];p.sway+=.05;p.vx*=(p.drag||1);p.vy=p.vy*(p.drag||1)+.05*DPR;p.x+=p.vx+Math.sin(p.sway)*.6*DPR;p.y+=p.vy;p.rot+=p.vr;if(p.y>H+50||p.x<-60||p.x>W+60){conf.splice(i,1);continue;}x.save();x.translate(p.x,p.y);x.rotate(p.rot);x.fillStyle=`rgb(${p.col[0]},${p.col[1]},${p.col[2]})`;x.fillRect(-p.w/2,-p.h/2,p.w,p.h);x.restore();}
-    if(rockets.length||sparks.length||conf.length||balloons.length||flashes.length)requestAnimationFrame(frame);else{running=false;x.clearRect(0,0,W,H);}}
+    if(rockets.length||sparks.length||conf.length||balloons.length||flashes.length)requestAnimationFrame(frame);else{running=false;isCelebrating=false;x.clearRect(0,0,W,H);}}
   function start(){if(!running){running=true;requestAnimationFrame(frame);}}
   return{
     fireworks(n=5){let i=0;const iv=setInterval(()=>{launch();start();if(++i>=n)clearInterval(iv);},240);},
-    celebrate(){SFX.celebrate();showBanner();flashScreen();
-      cannon(-1);cannon(1);rain(40);for(let k=0;k<3;k++)balloon();start();
-      let i=0;const iv=setInterval(()=>{for(let k=0;k<2;k++)launch();rain(16);balloon();balloon();if(i%3===0)cannon(i%2?1:-1);start();if(++i>=15)clearInterval(iv);},240);}
+    celebrate(){if(isCelebrating)return;isCelebrating=true;SFX.celebrate();showBanner();flashScreen();
+      cannon(-1);cannon(1);rain(MOBILE?20:40);balloon();balloon();start();
+      let i=0,reps=MOBILE?9:15;const iv=setInterval(()=>{launch();if(!MOBILE)launch();rain(MOBILE?8:16);balloon();if(!MOBILE)balloon();if(i%3===0)cannon(i%2?1:-1);start();if(++i>=reps)clearInterval(iv);},260);}
   };})();
 
 /* banner + screen flash */
@@ -461,8 +466,8 @@ const prog=document.getElementById("prog");
 let progTick=false;addEventListener("scroll",()=>{if(progTick)return;progTick=true;requestAnimationFrame(()=>{const h=document.documentElement;prog.style.width=(h.scrollTop/(h.scrollHeight-h.clientHeight||1)*100)+"%";progTick=false;});},{passive:true});
 
 /* GYRO tilt for diptych */
-if(window.DeviceOrientationEvent && !reduce){addEventListener("deviceorientation",e=>{if(e.gamma==null)return;
-  const ry=Math.max(-6,Math.min(6,e.gamma/8));document.querySelectorAll(".arch").forEach((a,i)=>{a.style.transform=(i?"translateY(18px) scale(.96) ":"")+`rotateY(${ry}deg)`;});},{passive:true});}
+if(window.DeviceOrientationEvent && !reduce && !MOBILE){const arches=document.querySelectorAll(".arch");addEventListener("deviceorientation",e=>{if(e.gamma==null||isScrolling)return;
+  const ry=Math.max(-6,Math.min(6,e.gamma/8));arches.forEach((a,i)=>{a.style.transform=(i?"translateY(18px) scale(.96) ":"")+`rotateY(${ry}deg)`;});},{passive:true});}
 
 /* TYPEWRITER */
 (function(){const el=document.getElementById("typer"),text=el.dataset.text;let started=false;
