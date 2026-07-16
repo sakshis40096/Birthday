@@ -316,9 +316,10 @@ Never dim your shine for anyone. The world needs exactly the you that you alread
 if("scrollRestoration" in history)history.scrollRestoration="manual";
 window.scrollTo(0,0);
 addEventListener("load",()=>window.scrollTo(0,0));
-const DPR=Math.min(devicePixelRatio||1,1.5);
 const reduce=matchMedia("(prefers-reduced-motion:reduce)").matches;
 const MOBILE=innerWidth<760||matchMedia("(pointer:coarse)").matches;
+/* fireworks canvas resolution — low on mobile so celebration never blocks scrolling */
+const DPR=MOBILE?0.8:Math.min(devicePixelRatio||1,1.5);
 /* perf: pause heavy background canvases while scrolling OR celebrating → buttery scroll, no freeze */
 let isScrolling=false,scrollEndT,isCelebrating=false;
 addEventListener("scroll",()=>{isScrolling=true;clearTimeout(scrollEndT);scrollEndT=setTimeout(()=>{isScrolling=false;},150);},{passive:true});
@@ -374,7 +375,7 @@ const PARTY=(function(){const c=document.getElementById("fireworks"),x=c.getCont
   const pal=[[255,93,143],[255,212,121],[155,108,255],[99,230,226],[255,157,187],[120,220,120],[255,255,255]];
   const rc=()=>pal[(Math.random()*pal.length)|0];
   const styles=["burst","ring","willow"];
-  const CAP=MOBILE?240:900;/* hard particle cap → celebration can never freeze the phone */
+  const CAP=MOBILE?170:900;/* hard particle cap → celebration can never freeze the phone */
   function launch(tx,style){if(rockets.length>(MOBILE?5:12))return;rockets.push({x:(tx==null?.12+Math.random()*.76:tx)*W,y:H,vx:(Math.random()-.5)*1.4*DPR,vy:-(9.5+Math.random()*3.2)*DPR,ty:(.1+Math.random()*.32)*H,col:rc(),style:style||styles[(Math.random()*styles.length)|0]});}
   function explode(rx,ry,col,style){
     if(sparks.length>CAP)return;
@@ -401,7 +402,13 @@ const PARTY=(function(){const c=document.getElementById("fireworks"),x=c.getCont
     x.beginPath();x.moveTo(b.x,b.y+b.r);x.lineTo(b.x-4*DPR,b.y+b.r+7*DPR);x.lineTo(b.x+4*DPR,b.y+b.r+7*DPR);x.closePath();x.fill();
     x.strokeStyle="rgba(255,255,255,.25)";x.lineWidth=DPR;x.beginPath();x.moveTo(b.x,b.y+b.r+7*DPR);x.quadraticCurveTo(b.x+10*DPR*Math.sin(b.wob),b.y+b.r+34*DPR,b.x,b.y+b.r+60*DPR);x.stroke();
     x.fillStyle="rgba(255,255,255,.4)";x.beginPath();x.ellipse(b.x-b.r*.3,b.y-b.r*.34,b.r*.16,b.r*.26,-.3,0,7);x.fill();}
-  function frame(){
+  let flast=0;
+  function frame(t){
+    const alive=rockets.length||sparks.length||conf.length||balloons.length||flashes.length;
+    if(alive)requestAnimationFrame(frame);else{running=false;isCelebrating=false;x.clearRect(0,0,W,H);return;}
+    /* cap fps; while scrolling, slow the fireworks so the page scroll stays 100% smooth */
+    const minDelay=isScrolling?55:(MOBILE?32:16);
+    if(t-flast<minDelay)return;flast=t;
     x.globalCompositeOperation="destination-out";x.fillStyle="rgba(0,0,0,.24)";x.fillRect(0,0,W,H);
     x.globalCompositeOperation="lighter";
     for(let i=flashes.length-1;i>=0;i--){const fl=flashes[i];fl.r+=(fl.max-fl.r)*.3;fl.life-=.06;if(fl.life<=0){flashes.splice(i,1);continue;}
@@ -411,13 +418,13 @@ const PARTY=(function(){const c=document.getElementById("fireworks"),x=c.getCont
     x.globalCompositeOperation="source-over";
     for(let i=balloons.length-1;i>=0;i--){const b=balloons[i];b.wob+=.03;b.x+=Math.sin(b.wob)*.6*DPR;b.y+=b.vy;if(b.y<=b.blastY){blastBalloon(b);balloons.splice(i,1);continue;}drawBalloon(b);}
     for(let i=conf.length-1;i>=0;i--){const p=conf[i];p.sway+=.05;p.vx*=(p.drag||1);p.vy=p.vy*(p.drag||1)+.05*DPR;p.x+=p.vx+Math.sin(p.sway)*.6*DPR;p.y+=p.vy;p.rot+=p.vr;if(p.y>H+50||p.x<-60||p.x>W+60){conf.splice(i,1);continue;}x.save();x.translate(p.x,p.y);x.rotate(p.rot);x.fillStyle=`rgb(${p.col[0]},${p.col[1]},${p.col[2]})`;x.fillRect(-p.w/2,-p.h/2,p.w,p.h);x.restore();}
-    if(rockets.length||sparks.length||conf.length||balloons.length||flashes.length)requestAnimationFrame(frame);else{running=false;isCelebrating=false;x.clearRect(0,0,W,H);}}
+  }
   function start(){if(!running){running=true;requestAnimationFrame(frame);}}
   return{
     fireworks(n=5){let i=0;const iv=setInterval(()=>{launch();start();if(++i>=n)clearInterval(iv);},240);},
     celebrate(){if(isCelebrating)return;isCelebrating=true;SFX.celebrate();showBanner();flashScreen();
       cannon(-1);cannon(1);rain(MOBILE?20:40);balloon();balloon();start();
-      let i=0,reps=MOBILE?7:15;const iv=setInterval(()=>{launch();if(!MOBILE)launch();rain(MOBILE?8:16);balloon();if(!MOBILE)balloon();if(i%3===0)cannon(i%2?1:-1);start();if(++i>=reps)clearInterval(iv);},260);}
+      let i=0,reps=MOBILE?6:15;const iv=setInterval(()=>{launch();if(!MOBILE)launch();rain(MOBILE?8:16);balloon();if(!MOBILE)balloon();if(i%3===0)cannon(i%2?1:-1);start();if(++i>=reps)clearInterval(iv);},260);}
   };})();
 
 /* banner + screen flash */
